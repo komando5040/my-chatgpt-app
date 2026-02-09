@@ -47,65 +47,7 @@ class TestApp(App):
         self.message_label.text = random.choice(messages)
 
 if __name__ == '__main__':
-    TestApp().run()class ChatGPTApp(App):
-    """اپلیکیشن اصلی"""
-    
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.title = "AI Assistant"
-        self.chat_history = []
-        self.responses = self.load_responses()
-        
-    def build(self):
-        # تم تاریک
-        Window.clearcolor = COLORS['bg_dark']
-        
-        # لایه اصلی
-        main_layout = BoxLayout(orientation='vertical', spacing=5)
-        
-        # هدر
-        header = BoxLayout(
-            size_hint_y=0.1,
-            orientation='horizontal',
-            padding=[10, 5]
-        )
-        
-        with header.canvas.before:
-            Color(*self.hex_to_rgb(COLORS['bg_dark']))
-            self.rect = Rectangle(size=header.size, pos=header.pos)
-        
-        header.bind(pos=self.update_rect, size=self.update_rect)
-        
-        title = Label(
-            text='AI Assistant',
-            font_size='20sp',
-            bold=True,
-            color=COLORS['text_white'],
-            size_hint_x=0.8
-        )
-        
-        # دکمه پاک کردن چت
-        clear_btn = Button(
-            text='🗑️',
-            size_hint_x=0.2,
-            background_color=(0, 0, 0, 0),
-            color=COLORS['text_white'],
-            font_size='18sp'
-        )
-        clear_btn.bind(on_press=self.clear_chat)
-        
-        header.add_widget(title)
-        header.add_widget(clear_btn)
-        
-        main_layout.add_widget(header)
-        
-        # بخش چت (اسکرول)
-        self.chat_scroll = ScrollView(
-            size_hint_y=0.8,
-            do_scroll_x=False
-        )
-        
-        self.chat_layout = BoxLayout(
+    TestApp().run()        self.chat_layout = BoxLayout(
             orientation='vertical',
             spacing=10,
             padding=[10, 10],
