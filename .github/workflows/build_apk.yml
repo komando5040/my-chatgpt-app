@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04  # استفاده از Ubuntu 22.04 که پایدارتر است
+    runs-on: ubuntu-22.04
     
     steps:
     - name: Checkout repository
@@ -42,7 +42,10 @@ jobs:
           curl \
           wget \
           sudo \
-          software-properties-common
+          software-properties-common \
+          ninja-build \
+          unzip \
+          ccache
         
     - name: Install Buildozer and Cython
       run: |
@@ -55,29 +58,70 @@ jobs:
         buildozer --version
         which buildozer
         
-    - name: Initialize Buildozer (if needed)
+    - name: Configure Buildozer
       run: |
+        # نمایش ساختار پروژه
+        echo "=== Project Structure ==="
+        ls -la
+        
+        echo -e "\n=== buildozer.spec content ==="
+        head -50 buildozer.spec || echo "No buildozer.spec found"
+        
+        # ایجاد فایل spec اگر وجود ندارد
         if [ ! -f "buildozer.spec" ]; then
+          echo "Creating buildozer.spec..."
           buildozer init
-        else
-          echo "buildozer.spec already exists"
-          ls -la buildozer.spec
         fi
         
-    - name: Build APK with Buildozer
+    - name: Build APK with Buildozer (with detailed logs)
       run: |
-        # پاکسازی ساخت‌های قبلی
+        echo "=== Starting Buildozer build ==="
+        
+        # پاکسازی
+        echo "Cleaning previous builds..."
         buildozer android clean || true
         
-        # ساخت APK با لاگ کامل
-        buildozer -v android debug 2>&1 | tail -200
+        # دانلود dependencies
+        echo "Downloading dependencies..."
+        buildozer android update || true
         
-        # نمایش فایل‌های ساخته شده
-        echo "Build files:"
-        ls -la bin/ || echo "bin/ directory not found"
-        ls -la .buildozer/android/platform/build-*/. || echo "Build directories not found"
+        # ساخت با لاگ کامل
+        echo "Building APK (this will take 20-30 minutes)..."
         
-      timeout-minutes: 60
+        # اجرای buildozer با timeout و ذخیره خروجی
+        timeout 1800 buildozer -v android debug 2>&1 | tee build.log
+        
+        # بررسی خروجی
+        echo -e "\n=== Build Summary ==="
+        tail -100 build.log
+        
+        # بررسی فایل‌های ساخته شده
+        echo -e "\n=== Checking for APK files ==="
+        if ls bin/*.apk 1> /dev/null 2>&1; then
+          echo "✅ APK file found!"
+          ls -lh bin/*.apk
+        else
+          echo "❌ No APK file found in bin/"
+          echo "Checking .buildozer directory..."
+          find .buildozer -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+          
+          # نمایش خطاها از لاگ
+          echo -e "\n=== Last 50 lines of build.log ==="
+          tail -50 build.log
+          
+          echo -e "\n=== Checking for common errors ==="
+          grep -i "error\|fail\|exception" build.log | head -20 || true
+        fi
+        
+      timeout-minutes: 45
+        
+    - name: Upload build log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: build.log
+        retention-days: 7
         
     - name: Upload APK artifact
       if: success()
@@ -88,11 +132,10 @@ jobs:
         retention-days: 7
         if-no-files-found: error
         
-    - name: Upload build logs on failure
+    - name: Upload build directory on failure
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: build-failure-logs
-        path: |
-          .buildozer/
+        name: build-directory
+        path: .buildozer
         retention-days: 7
