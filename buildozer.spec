@@ -1,58 +1,49 @@
 [app]
 
-# نام اپلیکیشن
+# Application title
 title = AI Assistant
 
-# نام پکیج
+# Package name
 package.name = aichat
 
-# دامنه پکیج
-package.domain = org.aichat
+# Package domain
+package.domain = org.test
 
-# پوشه کد منبع
+# Source directory
 source.dir = .
 
-# فایل اصلی
-source.main = app.py
+# Main file
+source.main = main.py
 
-# نسخه اپلیکیشن
+# Application version
 version = 1.0.0
 
-# نیازمندی‌ها
-requirements = python3==3.10.9,kivy==2.3.0,python-bidi==0.4.2,arabic-reshaper==3.0.0,android,plyer
+# Requirements
+requirements = python3, kivy==2.2.1
 
-# جهت صفحه
+# Orientation
 orientation = portrait
 
-# تمام صفحه
-fullscreen = 0
-
-# API اندروید
-android.api = 34
+# Android specific
+android.api = 33
 android.minapi = 21
+android.sdk = 23
+android.ndk = 23b
+android.ndk_api = 21
 
-# معماری‌ها
-android.archs = arm64-v8a, armeabi-v7a
+# Architectures (use only one to speed up build)
+android.archs = arm64-v8a
 
-# مجوزها
+# Permissions
 android.permissions = INTERNET
 
-# امکان بک‌آپ
-android.allow_backup = True
+# Automatically accept SDK licenses
+android.accept_sdk_license = True
 
-# لودینگ اولیه
-# presplash.filename = %(source.dir)s/assets/icon.png
-
-# آیکون
-# icon.filename = %(source.dir)s/assets/icon.png
-
-# فرمت خروجی
-android.debug_artifact = apk
-
-# لوگ‌گیری
-log_level = 2
-
-[buildozer]
-# مسیر ساخت
+# Build directory
 build_dir = ./.buildozer
 bin_dir = ./bin
+
+[buildozer]
+# Log level (0 = error only, 1 = info, 2 = debug)
+log_level = 2
