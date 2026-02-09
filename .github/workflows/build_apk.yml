@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK for Android
 
 on:
   workflow_dispatch:
@@ -7,61 +7,77 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # استفاده از Ubuntu 22.04 که پایدارتر است
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       
-    - name: Set up Python
+    - name: Set up Python 3.10
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
         
-    - name: Install Buildozer dependencies
+    - name: Install system dependencies
       run: |
-        sudo apt-get update
+        sudo apt-get update -y
         sudo apt-get install -y \
-          build-essential \
           git \
           zip \
           unzip \
           openjdk-17-jdk \
           python3-pip \
+          python3-dev \
+          python3-venv \
           autoconf \
           libtool \
           pkg-config \
           zlib1g-dev \
           libncurses5-dev \
           libncursesw5-dev \
-          libtinfo5 \
+          libtinfo6 \
           cmake \
           libffi-dev \
-          libssl-dev
-          
+          libssl-dev \
+          curl \
+          wget \
+          sudo \
+          software-properties-common
+        
     - name: Install Buildozer and Cython
       run: |
-        pip install --user --upgrade buildozer cython
+        python3 -m pip install --upgrade pip wheel setuptools
+        pip3 install --user --upgrade buildozer cython virtualenv
         echo "$HOME/.local/bin" >> $GITHUB_PATH
         
-    - name: List directory contents (for debugging)
+    - name: Verify Buildozer installation
       run: |
-        echo "Listing project directory:"
-        ls -la
-        echo ""
-        echo "Checking buildozer.spec:"
-        if [ -f "buildozer.spec" ]; then
-          echo "buildozer.spec exists"
-          head -20 buildozer.spec
+        buildozer --version
+        which buildozer
+        
+    - name: Initialize Buildozer (if needed)
+      run: |
+        if [ ! -f "buildozer.spec" ]; then
+          buildozer init
         else
-          echo "buildozer.spec does NOT exist"
+          echo "buildozer.spec already exists"
+          ls -la buildozer.spec
         fi
         
     - name: Build APK with Buildozer
       run: |
-        buildozer android clean  # پاکسازی ساخت‌های قبلی
-        buildozer -v android debug  # ساخت با حالت verbose
-      timeout-minutes: 60  # افزایش زمان انتظار
+        # پاکسازی ساخت‌های قبلی
+        buildozer android clean || true
+        
+        # ساخت APK با لاگ کامل
+        buildozer -v android debug 2>&1 | tail -200
+        
+        # نمایش فایل‌های ساخته شده
+        echo "Build files:"
+        ls -la bin/ || echo "bin/ directory not found"
+        ls -la .buildozer/android/platform/build-*/. || echo "Build directories not found"
+        
+      timeout-minutes: 60
         
     - name: Upload APK artifact
       if: success()
@@ -69,14 +85,14 @@ jobs:
       with:
         name: AI-Assistant-APK
         path: bin/*.apk
-        retention-days: 5
+        retention-days: 7
+        if-no-files-found: error
         
-    - name: Upload logs on failure
+    - name: Upload build logs on failure
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: build-logs
+        name: build-failure-logs
         path: |
           .buildozer/
-          bin/
-        retention-days: 5
+        retention-days: 7
