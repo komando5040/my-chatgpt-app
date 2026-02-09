@@ -1,111 +1,53 @@
-"""
-ChatGPT-like App for Android
-Created with Kivy
-"""
-from kivy.config import Config
-Config.set('graphics', 'width', '360')
-Config.set('graphics', 'height', '640')
-
-import os
-import json
-import random
-from datetime import datetime
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
-from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
-from kivy.uix.image import Image
 from kivy.core.window import Window
-from kivy.graphics import Color, Rectangle
-from kivy.uix.floatlayout import FloatLayout
-from kivy.clock import Clock
-from kivy.properties import StringProperty, NumericProperty
-from kivy.uix.behaviors import ButtonBehavior
 
-# تنظیمات رنگ برای تم ChatGPT-like
-COLORS = {
-    'bg_dark': '#343541',
-    'bg_light': '#444654',
-    'user_msg': '#343541',
-    'ai_msg': '#444654',
-    'text_white': '#FFFFFF',
-    'text_gray': '#D1D5DB',
-    'primary': '#10A37F',
-    'border': '#565869',
-}
-
-class ChatBubble(BoxLayout):
-    """حباب چت برای پیام‌ها"""
-    text = StringProperty('')
-    is_user = NumericProperty(0)  # 1 برای کاربر، 0 برای AI
+class TestApp(App):
+    def build(self):
+        Window.size = (360, 640)
+        
+        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
+        
+        label = Label(
+            text='AI Assistant v1.0\n\nHello from Kivy!',
+            font_size='24sp',
+            halign='center'
+        )
+        label.bind(size=label.setter('text_size'))
+        
+        button = Button(
+            text='Click Me!',
+            size_hint=(None, None),
+            size=(200, 50),
+            pos_hint={'center_x': 0.5}
+        )
+        button.bind(on_press=self.on_button_click)
+        
+        self.message_label = Label(
+            text='',
+            font_size='18sp'
+        )
+        
+        layout.add_widget(label)
+        layout.add_widget(button)
+        layout.add_widget(self.message_label)
+        
+        return layout
     
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.orientation = 'horizontal'
-        self.size_hint_y = None
-        self.height = 100
-        self.padding = [10, 10]
-        self.spacing = 10
+    def on_button_click(self, instance):
+        messages = [
+            "Hello! 👋",
+            "AI Assistant is working!",
+            "Build successful!",
+            "Kivy app is running!"
+        ]
+        import random
+        self.message_label.text = random.choice(messages)
 
-class ChatMessage(BoxLayout):
-    """ویجت نمایش پیام"""
-    message = StringProperty('')
-    sender = StringProperty('user')  # 'user' یا 'ai'
-    
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.size_hint_y = None
-        self.bind(minimum_height=self.setter('height'))
-        
-        # تنظیم ظاهر بر اساس فرستنده
-        if self.sender == 'user':
-            self.orientation = 'horizontal-reverse'
-            bg_color = COLORS['user_msg']
-            text_color = COLORS['text_white']
-        else:
-            self.orientation = 'horizontal'
-            bg_color = COLORS['ai_msg']
-            text_color = COLORS['text_gray']
-        
-        # ایجاد لیبل برای متن پیام
-        lbl = Label(
-            text=self.message,
-            size_hint_x=0.8,
-            size_hint_y=None,
-            text_size=(Window.width * 0.7, None),
-            halign='left',
-            valign='top',
-            color=text_color,
-            markup=True
-        )
-        lbl.bind(texture_size=lbl.setter('size'))
-        
-        # آیکون فرستنده
-        icon_layout = BoxLayout(
-            size_hint=(0.2, 1),
-            orientation='vertical'
-        )
-        
-        # شبه آیکون
-        if self.sender == 'user':
-            icon_text = "👤"
-        else:
-            icon_text = "🤖"
-        
-        icon_label = Label(
-            text=icon_text,
-            font_size='20sp',
-            color=text_color
-        )
-        
-        icon_layout.add_widget(icon_label)
-        
-        self.add_widget(icon_layout)
-        self.add_widget(lbl)
-
-class ChatGPTApp(App):
+if __name__ == '__main__':
+    TestApp().run()class ChatGPTApp(App):
     """اپلیکیشن اصلی"""
     
     def __init__(self, **kwargs):
