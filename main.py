@@ -1,0 +1,419 @@
+"""
+ChatGPT-like App for Android
+Created with Kivy
+"""
+from kivy.config import Config
+Config.set('graphics', 'width', '360')
+Config.set('graphics', 'height', '640')
+
+import os
+import json
+import random
+from datetime import datetime
+from kivy.app import App
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.label import Label
+from kivy.uix.textinput import TextInput
+from kivy.uix.button import Button
+from kivy.uix.image import Image
+from kivy.core.window import Window
+from kivy.graphics import Color, Rectangle
+from kivy.uix.floatlayout import FloatLayout
+from kivy.clock import Clock
+from kivy.properties import StringProperty, NumericProperty
+from kivy.uix.behaviors import ButtonBehavior
+
+# تنظیمات رنگ برای تم ChatGPT-like
+COLORS = {
+    'bg_dark': '#343541',
+    'bg_light': '#444654',
+    'user_msg': '#343541',
+    'ai_msg': '#444654',
+    'text_white': '#FFFFFF',
+    'text_gray': '#D1D5DB',
+    'primary': '#10A37F',
+    'border': '#565869',
+}
+
+class ChatBubble(BoxLayout):
+    """حباب چت برای پیام‌ها"""
+    text = StringProperty('')
+    is_user = NumericProperty(0)  # 1 برای کاربر، 0 برای AI
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'horizontal'
+        self.size_hint_y = None
+        self.height = 100
+        self.padding = [10, 10]
+        self.spacing = 10
+
+class ChatMessage(BoxLayout):
+    """ویجت نمایش پیام"""
+    message = StringProperty('')
+    sender = StringProperty('user')  # 'user' یا 'ai'
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.size_hint_y = None
+        self.bind(minimum_height=self.setter('height'))
+        
+        # تنظیم ظاهر بر اساس فرستنده
+        if self.sender == 'user':
+            self.orientation = 'horizontal-reverse'
+            bg_color = COLORS['user_msg']
+            text_color = COLORS['text_white']
+        else:
+            self.orientation = 'horizontal'
+            bg_color = COLORS['ai_msg']
+            text_color = COLORS['text_gray']
+        
+        # ایجاد لیبل برای متن پیام
+        lbl = Label(
+            text=self.message,
+            size_hint_x=0.8,
+            size_hint_y=None,
+            text_size=(Window.width * 0.7, None),
+            halign='left',
+            valign='top',
+            color=text_color,
+            markup=True
+        )
+        lbl.bind(texture_size=lbl.setter('size'))
+        
+        # آیکون فرستنده
+        icon_layout = BoxLayout(
+            size_hint=(0.2, 1),
+            orientation='vertical'
+        )
+        
+        # شبه آیکون
+        if self.sender == 'user':
+            icon_text = "👤"
+        else:
+            icon_text = "🤖"
+        
+        icon_label = Label(
+            text=icon_text,
+            font_size='20sp',
+            color=text_color
+        )
+        
+        icon_layout.add_widget(icon_label)
+        
+        self.add_widget(icon_layout)
+        self.add_widget(lbl)
+
+class ChatGPTApp(App):
+    """اپلیکیشن اصلی"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.title = "AI Assistant"
+        self.chat_history = []
+        self.responses = self.load_responses()
+        
+    def build(self):
+        # تم تاریک
+        Window.clearcolor = COLORS['bg_dark']
+        
+        # لایه اصلی
+        main_layout = BoxLayout(orientation='vertical', spacing=5)
+        
+        # هدر
+        header = BoxLayout(
+            size_hint_y=0.1,
+            orientation='horizontal',
+            padding=[10, 5]
+        )
+        
+        with header.canvas.before:
+            Color(*self.hex_to_rgb(COLORS['bg_dark']))
+            self.rect = Rectangle(size=header.size, pos=header.pos)
+        
+        header.bind(pos=self.update_rect, size=self.update_rect)
+        
+        title = Label(
+            text='AI Assistant',
+            font_size='20sp',
+            bold=True,
+            color=COLORS['text_white'],
+            size_hint_x=0.8
+        )
+        
+        # دکمه پاک کردن چت
+        clear_btn = Button(
+            text='🗑️',
+            size_hint_x=0.2,
+            background_color=(0, 0, 0, 0),
+            color=COLORS['text_white'],
+            font_size='18sp'
+        )
+        clear_btn.bind(on_press=self.clear_chat)
+        
+        header.add_widget(title)
+        header.add_widget(clear_btn)
+        
+        main_layout.add_widget(header)
+        
+        # بخش چت (اسکرول)
+        self.chat_scroll = ScrollView(
+            size_hint_y=0.8,
+            do_scroll_x=False
+        )
+        
+        self.chat_layout = BoxLayout(
+            orientation='vertical',
+            spacing=10,
+            padding=[10, 10],
+            size_hint_y=None
+        )
+        self.chat_layout.bind(minimum_height=self.chat_layout.setter('height'))
+        
+        self.chat_scroll.add_widget(self.chat_layout)
+        main_layout.add_widget(self.chat_scroll)
+        
+        # بخش ورودی
+        input_layout = BoxLayout(
+            size_hint_y=0.1,
+            orientation='horizontal',
+            spacing=10,
+            padding=[10, 10]
+        )
+        
+        self.input_field = TextInput(
+            hint_text='پیام خود را بنویسید...',
+            multiline=True,
+            size_hint_x=0.8,
+            background_color=COLORS['bg_light'],
+            foreground_color=COLORS['text_white'],
+            cursor_color=COLORS['text_white'],
+            hint_text_color=[0.7, 0.7, 0.7, 1]
+        )
+        self.input_field.bind(on_text_validate=self.send_message)
+        
+        send_btn = Button(
+            text='ارسال',
+            size_hint_x=0.2,
+            background_color=self.hex_to_rgb(COLORS['primary']),
+            color=COLORS['text_white']
+        )
+        send_btn.bind(on_press=self.send_message)
+        
+        input_layout.add_widget(self.input_field)
+        input_layout.add_widget(send_btn)
+        main_layout.add_widget(input_layout)
+        
+        # نمایش پیام خوش‌آمدگویی
+        Clock.schedule_once(lambda dt: self.show_welcome(), 0.5)
+        
+        return main_layout
+    
+    def update_rect(self, instance, value):
+        """بروزرسانی مستطیل پس‌زمینه"""
+        instance.rect.pos = instance.pos
+        instance.rect.size = instance.size
+    
+    def hex_to_rgb(self, hex_color):
+        """تبدیل رنگ HEX به RGB"""
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16)/255 for i in (0, 2, 4)) + (1,)
+    
+    def load_responses(self):
+        """بارگذاری پاسخ‌های از پیش تعریف شده"""
+        responses = {
+            # سلام و احوالپرسی
+            'سلام': [
+                'سلام! چطور می‌تونم کمکتون کنم؟',
+                'درود! خوب هستید؟',
+                'سلام! خوش آمدید. 😊'
+            ],
+            'درود': [
+                'درود بر شما! چه کمکی می‌تونم بکنم؟',
+                'سلام! چطور می‌تونم خدمتتون باشم؟'
+            ],
+            'hello': [
+                'Hello! How can I assist you today?',
+                'Hi there! What can I do for you?'
+            ],
+            'hi': [
+                'Hi! How are you doing?',
+                'Hello! Nice to meet you!'
+            ],
+            
+            # احوالپرسی
+            'حالت چطوره': [
+                'من خوبم ممنون! امیدوارم شما هم خوب باشید.',
+                'عالی هستم، مرسی! شما چطورید؟'
+            ],
+            'چطوري': [
+                'خوبم، ممنون! 😊',
+                'عالی! امیدوارم شما هم همینطور باشید.'
+            ],
+            'how are you': [
+                'I\'m doing great, thank you! How about you?',
+                'I\'m fine, thanks for asking!'
+            ],
+            
+            # تشکر
+            'ممنون': [
+                'خواهش می‌کنم! 😊',
+                'خوشحالم که می‌تونم کمک کنم.',
+                'کاری نکردم! اگر سوال دیگه‌ای دارید بپرسید.'
+            ],
+            'مرسي': [
+                'قربونت! 😄',
+                'خواهش می‌کنم!'
+            ],
+            'thanks': [
+                'You\'re welcome!',
+                'Happy to help!'
+            ],
+            'thank you': [
+                'My pleasure!',
+                'Anytime! 😊'
+            ],
+            
+            # خداحافظی
+            'خداحافظ': [
+                'خداحافظ! موفق باشید.',
+                'به امید دیدار! 😊',
+                'خدانگهدار!'
+            ],
+            'باي': [
+                'بای بای! 👋',
+                'خداحافظ!'
+            ],
+            'goodbye': [
+                'Goodbye! Have a nice day!',
+                'See you later! 👋'
+            ],
+            'bye': [
+                'Bye! Take care!',
+                'See you! 😊'
+            ],
+            
+            # سوالات متداول
+            'اسمت چيه': [
+                'من یک دستیار هوش مصنوعی هستم!',
+                'من AI Assistant هستم، در خدمت شما!'
+            ],
+            'كی هستی': [
+                'من یک دستیار مجازی هستم که با پایتون و Kivy ساخته شده‌ام.',
+                'من AI Assistant هستم که برای کمک به شما طراحی شده‌ام.'
+            ],
+            'چه کارهايی میتونی انجام بدی': [
+                'می‌تونم به سوالاتتون پاسخ بدم، با شما گپ بزنم و اطلاعات مفید ارائه بدم.',
+                'من می‌تونم در زمینه‌های مختلف کمکتون کنم و به سوالاتتون پاسخ بدم.'
+            ],
+            
+            # سوالات انگلیسی
+            'what is your name': [
+                'I\'m AI Assistant, created with Python and Kivy!',
+                'You can call me AI Assistant!'
+            ],
+            'who are you': [
+                'I\'m an AI assistant designed to help you with various tasks.',
+                'I\'m your virtual assistant, ready to help!'
+            ],
+            'what can you do': [
+                'I can answer your questions, chat with you, and provide useful information.',
+                'I\'m here to assist you with various tasks and answer your queries.'
+            ],
+        }
+        return responses
+    
+    def get_response(self, message):
+        """دریافت پاسخ مناسب برای پیام کاربر"""
+        message_lower = message.strip().lower()
+        
+        # جستجوی دقیق در کلیدها
+        for key in self.responses:
+            if key in message_lower:
+                return random.choice(self.responses[key])
+        
+        # اگر کلمه کلیدی خاصی پیدا نشد
+        default_responses = [
+            'متاسفانه سوال شما رو کامل متوجه نشدم. می‌تونید سوالتون رو واضح‌تر بپرسید؟',
+            'لطفاً سوال خود را به شکل دیگری بیان کنید.',
+            'من هنوز در حال یادگیری هستم! سوالات ساده‌تر رو بهتر متوجه می‌شم.',
+            'I\'m not sure I understand. Could you rephrase your question?',
+            'Could you please ask in a different way?',
+            'I\'m still learning! I understand simpler questions better.'
+        ]
+        
+        # بررسی زبان پیام
+        persian_chars = set('ابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی')
+        if any(char in persian_chars for char in message_lower):
+            return 'متوجه سوال شما شدم اما پاسخی برای آن ندارم. می‌توانید سوال دیگری بپرسید؟'
+        else:
+            return 'I understand your question but don\'t have a specific answer. Could you ask something else?'
+    
+    def send_message(self, instance):
+        """ارسال پیام کاربر و دریافت پاسخ"""
+        user_message = self.input_field.text.strip()
+        
+        if not user_message:
+            return
+        
+        # اضافه کردن پیام کاربر به چت
+        self.add_message_to_chat(user_message, 'user')
+        
+        # پاک کردن فیلد ورودی
+        self.input_field.text = ''
+        
+        # شبیه‌سازی تایپ AI
+        Clock.schedule_once(lambda dt: self.generate_ai_response(user_message), 0.5)
+    
+    def generate_ai_response(self, user_message):
+        """تولید پاسخ AI"""
+        response = self.get_response(user_message)
+        
+        # اضافه کردن پاسخ AI به چت
+        self.add_message_to_chat(response, 'ai')
+        
+        # ذخیره در تاریخچه چت
+        self.chat_history.append({
+            'user': user_message,
+            'ai': response,
+            'time': datetime.now().strftime('%H:%M')
+        })
+    
+    def add_message_to_chat(self, message, sender):
+        """افزودن پیام به رابط کاربری چت"""
+        msg_widget = ChatMessage(
+            message=message,
+            sender=sender,
+            size_hint_y=None
+        )
+        
+        self.chat_layout.add_widget(msg_widget)
+        
+        # اسکرول به پایین
+        Clock.schedule_once(lambda dt: self.scroll_to_bottom(), 0.1)
+    
+    def scroll_to_bottom(self):
+        """اسکرول به آخرین پیام"""
+        if self.chat_layout.height > self.chat_scroll.height:
+            self.chat_scroll.scroll_y = 0
+    
+    def show_welcome(self):
+        """نمایش پیام خوش‌آمدگویی"""
+        welcome_messages = [
+            "سلام! من AI Assistant هستم. 😊",
+            "خوش آمدید! چطور می‌تونم کمکتون کنم؟",
+            "برای شروع، می‌تونید به من سلام کنید یا سوالتون رو بپرسید."
+        ]
+        
+        self.add_message_to_chat(random.choice(welcome_messages), 'ai')
+    
+    def clear_chat(self, instance):
+        """پاک کردن تاریخچه چت"""
+        self.chat_layout.clear_widgets()
+        self.chat_history = []
+        self.show_welcome()
+
+
+if __name__ == '__main__':
+    ChatGPTApp().run()
