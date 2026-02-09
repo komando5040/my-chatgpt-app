@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     
     steps:
     - name: Checkout repository
@@ -38,26 +38,45 @@ jobs:
           cmake \
           libffi-dev \
           libssl-dev
-        
-    - name: Install Buildozer
+          
+    - name: Install Buildozer and Cython
       run: |
-        pip install --user --upgrade buildozer
-        pip install --user --upgrade cython
+        pip install --user --upgrade buildozer cython
         echo "$HOME/.local/bin" >> $GITHUB_PATH
         
-    - name: Build APK
+    - name: List directory contents (for debugging)
       run: |
-        buildozer init
-        buildozer android debug
-      env:
-        P4A_RELEASE_KEYSTORE: ${{ secrets.P4A_RELEASE_KEYSTORE }}
-        P4A_RELEASE_KEYSTORE_PASSWD: ${{ secrets.P4A_RELEASE_KEYSTORE_PASSWD }}
-        P4A_RELEASE_KEYALIAS_PASSWD: ${{ secrets.P4A_RELEASE_KEYALIAS_PASSWD }}
-        P4A_RELEASE_KEYALIAS: ${{ secrets.P4A_RELEASE_KEYALIAS }}
+        echo "Listing project directory:"
+        ls -la
+        echo ""
+        echo "Checking buildozer.spec:"
+        if [ -f "buildozer.spec" ]; then
+          echo "buildozer.spec exists"
+          head -20 buildozer.spec
+        else
+          echo "buildozer.spec does NOT exist"
+        fi
+        
+    - name: Build APK with Buildozer
+      run: |
+        buildozer android clean  # پاکسازی ساخت‌های قبلی
+        buildozer -v android debug  # ساخت با حالت verbose
+      timeout-minutes: 60  # افزایش زمان انتظار
         
     - name: Upload APK artifact
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: AI-Assistant-APK
         path: bin/*.apk
+        retention-days: 5
+        
+    - name: Upload logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: |
+          .buildozer/
+          bin/
         retention-days: 5
