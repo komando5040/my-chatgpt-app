@@ -16,22 +16,22 @@ jobs:
       run: |
         # استفاده از Docker image از پیش پیکربندی شده
         docker run --rm \
-          -v $(pwd):/src \
-          -v buildozer_cache:/home/user/.buildozer \
+          -v "$(pwd):/src" \
+          -v "buildozer_cache:/home/user/.buildozer" \
           jachin007/buildozer:latest \
           bash -c "
-          cd /src && \
-          echo '=== Starting Buildozer ===' && \
-          buildozer android clean 2>&1 && \
-          buildozer -v android debug 2>&1 | tail -100
+          cd /src
+          echo '=== Starting Buildozer ==='
+          buildozer android clean
+          buildozer -v android debug
           "
           
     - name: Check for APK files
       run: |
         echo "Looking for APK files..."
-        find . -name "*.apk" -type f | head -10 || echo "No APK files found"
+        find . -name "*.apk" -type f 2>/dev/null | head -10 || echo "No APK files found"
         
-        if ls bin/*.apk 2>/dev/null; then
+        if ls bin/*.apk 1> /dev/null 2>&1; then
           echo "✅ APK found!"
           ls -lh bin/*.apk
         else
@@ -45,13 +45,4 @@ jobs:
       with:
         name: android-apk
         path: bin/*.apk
-        if-no-files-found: error        path: debug.log
-        retention-days: 7
-        
-    - name: Upload APK if exists
-      uses: actions/upload-artifact@v4
-      if: success()
-      with:
-        name: apk-file
-        path: bin/
-        retention-days: 7
+        if-no-files-found: error
