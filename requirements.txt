@@ -1,0 +1,5 @@
+kivy==2.3.0
+python-bidi==0.4.2
+arabic-reshaper==3.0.0
+plyer==2.1.0
+android
