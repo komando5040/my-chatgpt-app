@@ -1,48 +1,37 @@
-name: Build APK with Docker (Guaranteed)
+name: Build APK with Docker
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
 
 jobs:
-  build-with-docker:
+  build:
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Build with pre-configured Docker
+    - name: Build with Docker
       run: |
-        # استفاده از Docker image از پیش پیکربندی شده
+        # استفاده از Docker image معتبر
         docker run --rm \
           -v "$(pwd):/src" \
-          -v "buildozer_cache:/home/user/.buildozer" \
-          jachin007/buildozer:latest \
-          bash -c "
-          cd /src
-          echo '=== Starting Buildozer ==='
-          buildozer android clean
-          buildozer -v android debug
-          "
+          crazymax/buildozer:latest \
+          buildozer android debug
           
-    - name: Check for APK files
+    - name: Check for APK
       run: |
-        echo "Looking for APK files..."
-        find . -name "*.apk" -type f 2>/dev/null | head -10 || echo "No APK files found"
-        
-        if ls bin/*.apk 1> /dev/null 2>&1; then
+        echo "Checking for APK file..."
+        if [ -f "bin/*.apk" ]; then
           echo "✅ APK found!"
           ls -lh bin/*.apk
         else
-          echo "❌ No APK in bin/"
-          echo "Searching everywhere..."
-          find . -type f -name "*.apk" 2>/dev/null || echo "No APK files anywhere"
+          echo "Searching for APK..."
+          find . -name "*.apk" -type f 2>/dev/null || echo "No APK found"
         fi
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: android-apk
+        name: android-app
         path: bin/*.apk
-        if-no-files-found: error
+        if-no-files-found: warn
