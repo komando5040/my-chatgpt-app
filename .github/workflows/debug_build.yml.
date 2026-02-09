@@ -1,0 +1,116 @@
+name: Debug Build - Find the Problem
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug-build:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        
+    - name: Install basic dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-pip \
+          python3-dev \
+          git \
+          zip \
+          unzip \
+          curl \
+          wget
+          
+    - name: Install Buildozer
+      run: |
+        pip3 install buildozer
+        echo "Buildozer version:"
+        buildozer --version
+        
+    - name: Create test project if needed
+      run: |
+        echo "=== Current directory structure ==="
+        ls -la
+        
+        if [ ! -f "main.py" ]; then
+          echo "Creating test main.py..."
+          cat > main.py << 'EOF'
+from kivy.app import App
+from kivy.uix.label import Label
+
+class TestApp(App):
+    def build(self):
+        return Label(text='Hello World!')
+
+if __name__ == '__main__':
+    TestApp().run()
+EOF
+        fi
+        
+        if [ ! -f "buildozer.spec" ]; then
+          echo "Creating minimal buildozer.spec..."
+          buildozer init
+        fi
+        
+        echo -e "\n=== buildozer.spec content ==="
+        cat buildozer.spec
+        
+    - name: Run Buildozer with full debug
+      run: |
+        echo "=== Starting Buildozer in debug mode ==="
+        
+        # پاکسازی
+        buildozer android clean 2>&1 | tee -a debug.log || true
+        
+        # اجرای کامل build با ذخیره تمام خروجی
+        timeout 2400 buildozer -v android debug 2>&1 | tee -a debug.log
+        
+        echo -e "\n=== Checking results ==="
+        
+        # بررسی فایل‌های خروجی
+        if ls bin/*.apk 2>/dev/null; then
+          echo "✅ SUCCESS: APK found!"
+          ls -lh bin/*.apk
+        else
+          echo "❌ FAILED: No APK found"
+          
+          echo -e "\n=== Checking .buildozer directory ==="
+          find .buildozer -type f -name "*.apk" 2>/dev/null || echo "No APK files in .buildozer"
+          
+          echo -e "\n=== Last 100 lines of debug.log ==="
+          tail -100 debug.log
+          
+          echo -e "\n=== Looking for errors ==="
+          grep -i -A5 -B5 "error\|fail\|exception\|crash" debug.log | head -50 || true
+          
+          echo -e "\n=== Checking Android SDK ==="
+          ls -la ~/.buildozer/android/platform/android-sdk/ 2>/dev/null || echo "Android SDK not found"
+          
+          echo -e "\n=== Checking NDK ==="
+          ls -la ~/.buildozer/android/platform/android-ndk*/ 2>/dev/null || echo "NDK not found"
+        fi
+        
+      timeout-minutes: 45
+        
+    - name: Upload debug log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-log
+        path: debug.log
+        retention-days: 7
+        
+    - name: Upload APK if exists
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: apk-file
+        path: bin/
+        retention-days: 7
